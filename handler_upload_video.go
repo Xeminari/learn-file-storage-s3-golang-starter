@@ -44,10 +44,6 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
-		return
-	}
 	file, header, err := r.FormFile("video")
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Unable to parse form file", err)
@@ -69,7 +65,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	tmp, err := os.CreateTemp("", "tube-upload-*.mp4")
+	tmp, err := os.CreateTemp("", "tube-upload.mp4")
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to create temp file", err)
 		return
@@ -86,28 +82,41 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	key := getAssetPath(mediaType)
+	aspectRatio, err := cfg.getVideoAspectRatio(tmp.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to get video aspect ratio", err)
+		return
+	}
 
+	var prefix string
+	switch aspectRatio {
+	case "landscape":
+		prefix = "landscape"
+	case "portrait":
+		prefix = "portrait"
+	default:
+		prefix = "other"
+	}
+
+	key := fmt.Sprintf("%s/%s", prefix, getAssetPath(mediaType))
 	bucketparams := s3.PutObjectInput{
 		Bucket:      &cfg.s3Bucket,
 		Key:         &key,
 		Body:        tmp,
 		ContentType: &mediaType,
 	}
-
 	_, err = cfg.s3Client.PutObject(r.Context(), &bucketparams)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to upload to S3", err)
 		return
 	}
-	url := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s",
-		cfg.s3Bucket, cfg.s3Region, key,
-	)
-	video.VideoURL = &url
 
+	url := cfg.getObjectURL(key)
+	video.VideoURL = &url
 	if err := cfg.db.UpdateVideo(video); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't update video", err)
 		return
 	}
+
 	respondWithJSON(w, http.StatusOK, video)
 }
