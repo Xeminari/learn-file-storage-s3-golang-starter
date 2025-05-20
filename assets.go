@@ -123,3 +123,21 @@ func (cfg apiConfig) getVideoAspectRatio(filePath string) (string, error) {
 
 	return classifyAspectRatio(width, height), nil
 }
+
+func processVideoForFastStart(filePath string) (string, error) {
+	outputPath := filePath + ".processing"
+
+	cmd := exec.Command("ffmpeg",
+		"-i", filePath,
+		"-c", "copy",
+		"-movflags", "faststart",
+		"-f", "mp4",
+		outputPath,
+	)
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("ffmpeg faststart processing failed: %w", err)
+	}
+
+	return outputPath, nil
+}
