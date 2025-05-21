@@ -123,20 +123,21 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "Failed to upload to S3", err)
 		return
 	}
-	video_url := cfg.s3Bucket + "," + key
 
-	//url := cfg.getObjectURL(key)
+	//video_url := cfg.s3Bucket + "," + key
+	//video_url := cfg.getObjectURL(key)
+	video_url := fmt.Sprintf("%s/%s", cfg.s3CfDistribution, key)
 	video.VideoURL = &video_url
 	if err := cfg.db.UpdateVideo(video); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't update video", err)
 		return
 	}
-
-	video, err = cfg.dbVideoToSignedVideo(video)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to generate presigned URL", err)
-		return
-	}
-
+	/*
+		video, err = cfg.dbVideoToSignedVideo(video)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to generate presigned URL", err)
+			return
+		}
+	*/
 	respondWithJSON(w, http.StatusOK, video)
 }
